@@ -17,13 +17,13 @@ const Attendance = () => {
   const [loading, setLoading] = useState(false);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 
-  // Load students
+  // Load students (NO DEFAULT STATUS)
   useEffect(() => {
     api.get<Student[]>("/students").then((res) =>
       setStudents(
         res.data.map((s) => ({
           ...s,
-          status: "present"
+          status: undefined
         }))
       )
     );
@@ -39,7 +39,6 @@ const Attendance = () => {
         if (res.data.length > 0) {
           setAlreadySubmitted(true);
 
-          // preload existing status
           setStudents((prev) =>
             prev.map((s) => {
               const found = res.data.find(
@@ -54,9 +53,7 @@ const Attendance = () => {
           setAlreadySubmitted(false);
         }
       })
-      .catch(() => {
-        setAlreadySubmitted(false);
-      });
+      .catch(() => setAlreadySubmitted(false));
   }, [date]);
 
   // 🔒 Check 24-hour lock
@@ -65,10 +62,7 @@ const Attendance = () => {
     selected.setHours(0, 0, 0, 0);
 
     const now = new Date();
-    const diffHours =
-      (now.getTime() - selected.getTime()) / (1000 * 60 * 60);
-
-    return diffHours > 24;
+    return (now.getTime() - selected.getTime()) / (1000 * 60 * 60) > 24;
   }, [date]);
 
   const updateStatus = (id: string, status: "present" | "absent") => {
@@ -80,6 +74,13 @@ const Attendance = () => {
   const submitAttendance = async () => {
     if (isLocked) {
       alert("Attendance is locked for this date 🔒");
+      return;
+    }
+
+    // ❌ Validation: all students must be marked
+    const unmarked = students.find((s) => !s.status);
+    if (unmarked) {
+      alert("Please mark attendance for all students");
       return;
     }
 
@@ -141,7 +142,7 @@ const Attendance = () => {
             <thead className="bg-gray-200">
               <tr>
                 <th className="p-3 text-left">Name</th>
-                <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-left">Attendance</th>
               </tr>
             </thead>
             <tbody>
@@ -149,20 +150,31 @@ const Attendance = () => {
                 <tr key={s._id} className="border-t">
                   <td className="p-3">{s.name}</td>
                   <td className="p-3">
-                    <select
-                      className="border rounded p-1 disabled:bg-gray-100"
-                      value={s.status}
-                      disabled={isLocked}
-                      onChange={(e) =>
-                        updateStatus(
-                          s._id,
-                          e.target.value as "present" | "absent"
-                        )
-                      }
-                    >
-                      <option value="present">Present</option>
-                      <option value="absent">Absent</option>
-                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={isLocked}
+                        onClick={() => updateStatus(s._id, "present")}
+                        className={`px-4 py-1 rounded border font-medium ${
+                          s.status === "present"
+                            ? "bg-green-600 text-white"
+                            : "bg-white text-gray-700"
+                        } disabled:opacity-50`}
+                      >
+                        Present
+                      </button>
+
+                      <button
+                        disabled={isLocked}
+                        onClick={() => updateStatus(s._id, "absent")}
+                        className={`px-4 py-1 rounded border font-medium ${
+                          s.status === "absent"
+                            ? "bg-red-600 text-white"
+                            : "bg-white text-gray-700"
+                        } disabled:opacity-50`}
+                      >
+                        Absent
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
