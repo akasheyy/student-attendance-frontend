@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/axios";
 import Layout from "../components/Layout";
 
@@ -17,25 +17,28 @@ const Attendance = () => {
   const [loading, setLoading] = useState(false);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 
-  // Load students (NO DEFAULT STATUS)
+  // 🔒 prevents re-overwriting user selection
+  const attendanceLoadedRef = useRef<string | null>(null);
+
+  // Load students (once)
   useEffect(() => {
-    api.get<Student[]>("/students").then((res) =>
-      setStudents(
-        res.data.map((s) => ({
-          ...s,
-          status: undefined
-        }))
-      )
-    );
+    api.get<Student[]>("/students").then((res) => {
+      setStudents(res.data);
+    });
   }, []);
 
-  // 🔍 Check if attendance exists for selected date
+  // 🔍 Load attendance ONLY ONCE PER DATE
   useEffect(() => {
     if (!date) return;
+
+    // ⛔ already loaded for this date
+    if (attendanceLoadedRef.current === date) return;
 
     api
       .get(`/attendance/daily?date=${date}`)
       .then((res) => {
+        attendanceLoadedRef.current = date;
+
         if (res.data.length > 0) {
           setAlreadySubmitted(true);
 
@@ -44,25 +47,28 @@ const Attendance = () => {
               const found = res.data.find(
                 (r: any) => r.student?._id === s._id
               );
-              return found
-                ? { ...s, status: found.status }
-                : s;
+              return found ? { ...s, status: found.status } : s;
             })
           );
         } else {
           setAlreadySubmitted(false);
+
+          // reset only when no attendance exists
+          setStudents((prev) =>
+            prev.map((s) => ({ ...s, status: undefined }))
+          );
         }
       })
-      .catch(() => setAlreadySubmitted(false));
+      .catch(() => {
+        setAlreadySubmitted(false);
+      });
   }, [date]);
 
   // 🔒 Check 24-hour lock
   const isLocked = useMemo(() => {
     const selected = new Date(date);
     selected.setHours(0, 0, 0, 0);
-
-    const now = new Date();
-    return (now.getTime() - selected.getTime()) / (1000 * 60 * 60) > 24;
+    return (Date.now() - selected.getTime()) / (1000 * 60 * 60) > 24;
   }, [date]);
 
   const updateStatus = (id: string, status: "present" | "absent") => {
@@ -77,7 +83,6 @@ const Attendance = () => {
       return;
     }
 
-    // ❌ Validation: all students must be marked
     const unmarked = students.find((s) => !s.status);
     if (unmarked) {
       alert("Please mark attendance for all students");
@@ -119,7 +124,10 @@ const Attendance = () => {
             type="date"
             className="border p-2 rounded"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => {
+              attendanceLoadedRef.current = null; // reset loader
+              setDate(e.target.value);
+            }}
           />
         </div>
 
@@ -158,7 +166,7 @@ const Attendance = () => {
                           s.status === "present"
                             ? "bg-green-600 text-white"
                             : "bg-white text-gray-700"
-                        } disabled:opacity-50`}
+                        }`}
                       >
                         Present
                       </button>
@@ -170,7 +178,7 @@ const Attendance = () => {
                           s.status === "absent"
                             ? "bg-red-600 text-white"
                             : "bg-white text-gray-700"
-                        } disabled:opacity-50`}
+                        }`}
                       >
                         Absent
                       </button>
@@ -190,7 +198,7 @@ const Attendance = () => {
             alreadySubmitted
               ? "bg-yellow-600 hover:bg-yellow-700"
               : "bg-blue-600 hover:bg-blue-700"
-          } disabled:opacity-50`}
+          }`}
         >
           {loading
             ? "Processing..."
