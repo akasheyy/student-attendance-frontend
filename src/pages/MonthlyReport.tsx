@@ -1,6 +1,8 @@
 import { useState } from "react";
 import api from "../api/axios";
 import Layout from "../components/Layout";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface MonthlyReport {
   rollNo: number;
@@ -34,6 +36,41 @@ const MonthlyReport = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 🔥 PDF DOWNLOAD FUNCTION
+  const downloadPDF = () => {
+    if (data.length === 0) {
+      alert("No data to download");
+      return;
+    }
+
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("Monthly Attendance Report", 14, 15);
+
+    doc.setFontSize(11);
+    doc.text(`Month: ${month}   Year: ${year}`, 14, 24);
+
+    const tableData = data.map((r) => [
+      r.rollNo,
+      r.name,
+      r.present,
+      r.absent,
+      r.total,
+      `${r.percentage}%`,
+    ]);
+
+    autoTable(doc, {
+      startY: 30,
+      head: [["Roll No", "Name", "Present", "Absent", "Total", "%"]],
+      body: tableData,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [37, 99, 235] }, // blue
+    });
+
+    doc.save(`attendance-${month}-${year}.pdf`);
   };
 
   return (
@@ -74,9 +111,16 @@ const MonthlyReport = () => {
           >
             Generate
           </button>
+
+          <button
+            onClick={downloadPDF}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full sm:w-auto"
+          >
+            Download PDF
+          </button>
         </div>
 
-        {/* Table Wrapper (IMPORTANT FIX) */}
+        {/* Table */}
         <div className="bg-white rounded-xl shadow overflow-x-auto">
           <table className="min-w-[700px] w-full border-collapse">
             <thead className="bg-gray-200">
@@ -100,10 +144,7 @@ const MonthlyReport = () => {
               )}
 
               {data.map((r, i) => (
-                <tr
-                  key={i}
-                  className="border-t hover:bg-gray-50"
-                >
+                <tr key={i} className="border-t hover:bg-gray-50">
                   <td className="p-3">{r.rollNo}</td>
                   <td className="p-3">{r.name}</td>
                   <td className="p-3 text-center text-green-600 font-semibold">
