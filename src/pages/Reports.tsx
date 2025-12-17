@@ -13,15 +13,15 @@ interface Report {
 
 const Reports = () => {
   const [reports, setReports] = useState<Report[]>([]);
-  const [date, setDate] = useState("");
+
 
   const loadDailyReport = async (selectedDate: string) => {
-    setDate(selectedDate);
-    const res = await api.get<Report[]>(
-      `/attendance/daily?date=${selectedDate}`
-    );
-    setReports(res.data);
-  };
+  const res = await api.get<Report[]>(
+    `/attendance/daily?date=${selectedDate}`
+  );
+  setReports(res.data);
+};
+
 
   return (
     <Layout>
