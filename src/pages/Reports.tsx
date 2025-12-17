@@ -4,24 +4,39 @@ import Layout from "../components/Layout";
 
 interface Report {
   _id: string;
-  status: string;
-  studentId: {
+  status: "present" | "absent";
+  student: {
     name: string;
-    rollNo?: string;
+    rollNo?: string | number;
   };
 }
 
 const Reports = () => {
   const [reports, setReports] = useState<Report[]>([]);
-
+  const [date, setDate] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const loadDailyReport = async (selectedDate: string) => {
-  const res = await api.get<Report[]>(
-    `/attendance/daily?date=${selectedDate}`
-  );
-  setReports(res.data);
-};
+    setDate(selectedDate);
 
+    if (!selectedDate) {
+      setReports([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await api.get<Report[]>(
+        `/attendance/daily?date=${selectedDate}`
+      );
+      setReports(res.data);
+    } catch (err) {
+      alert("Failed to load daily report");
+      setReports([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Layout>
@@ -38,6 +53,7 @@ const Reports = () => {
           <input
             type="date"
             className="border p-2 rounded"
+            value={date}
             onChange={(e) => loadDailyReport(e.target.value)}
           />
         </div>
@@ -47,15 +63,17 @@ const Reports = () => {
           <table className="w-full">
             <thead className="bg-gray-200">
               <tr>
+                <th className="p-3 text-left">Roll No</th>
                 <th className="p-3 text-left">Name</th>
                 <th className="p-3 text-left">Status</th>
               </tr>
             </thead>
+
             <tbody>
-              {reports.length === 0 && (
+              {!loading && reports.length === 0 && (
                 <tr>
                   <td
-                    colSpan={2}
+                    colSpan={3}
                     className="p-4 text-center text-gray-500"
                   >
                     No data available
@@ -63,10 +81,13 @@ const Reports = () => {
                 </tr>
               )}
 
-              {reports.map((r) => (
-                <tr key={r._id} className="border-t">
+              {reports.map((r, index) => (
+                <tr key={index} className="border-t">
                   <td className="p-3">
-                    {r.studentId.name}
+                    {r.student.rollNo ?? "-"}
+                  </td>
+                  <td className="p-3">
+                    {r.student.name}
                   </td>
                   <td
                     className={`p-3 font-semibold ${
@@ -81,6 +102,12 @@ const Reports = () => {
               ))}
             </tbody>
           </table>
+
+          {loading && (
+            <div className="p-4 text-center text-gray-500">
+              Loading...
+            </div>
+          )}
         </div>
       </div>
     </Layout>
