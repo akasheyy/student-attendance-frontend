@@ -15,7 +15,9 @@ const Attendance = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [date, setDate] = useState(today);
   const [loading, setLoading] = useState(false);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 
+  // Load students
   useEffect(() => {
     api.get<Student[]>("/students").then((res) =>
       setStudents(
@@ -27,7 +29,37 @@ const Attendance = () => {
     );
   }, []);
 
-  // 🔒 CHECK IF DATE IS LOCKED (OLDER THAN 24 HRS)
+  // 🔍 Check if attendance exists for selected date
+  useEffect(() => {
+    if (!date) return;
+
+    api
+      .get(`/attendance/daily?date=${date}`)
+      .then((res) => {
+        if (res.data.length > 0) {
+          setAlreadySubmitted(true);
+
+          // preload existing status
+          setStudents((prev) =>
+            prev.map((s) => {
+              const found = res.data.find(
+                (r: any) => r.student?._id === s._id
+              );
+              return found
+                ? { ...s, status: found.status }
+                : s;
+            })
+          );
+        } else {
+          setAlreadySubmitted(false);
+        }
+      })
+      .catch(() => {
+        setAlreadySubmitted(false);
+      });
+  }, [date]);
+
+  // 🔒 Check 24-hour lock
   const isLocked = useMemo(() => {
     const selected = new Date(date);
     selected.setHours(0, 0, 0, 0);
@@ -46,11 +78,6 @@ const Attendance = () => {
   };
 
   const submitAttendance = async () => {
-    if (!date) {
-      alert("Please select a date");
-      return;
-    }
-
     if (isLocked) {
       alert("Attendance is locked for this date 🔒");
       return;
@@ -64,22 +91,16 @@ const Attendance = () => {
     try {
       setLoading(true);
 
-      await api.post("/attendance/mark", { date, records });
-      alert("Attendance marked successfully ✅");
-
-    } catch (err: any) {
-      const message = err.response?.data?.message;
-
-      if (message === "Attendance already marked for this date") {
-        try {
-          await api.put("/attendance/edit", { date, records });
-          alert("Attendance updated successfully ✏️");
-        } catch (editErr: any) {
-          alert(editErr.response?.data?.message || "Edit failed");
-        }
+      if (alreadySubmitted) {
+        await api.put("/attendance/edit", { date, records });
+        alert("Attendance updated successfully ✏️");
       } else {
-        alert(message || "Failed to submit attendance");
+        await api.post("/attendance/mark", { date, records });
+        alert("Attendance submitted successfully ✅");
+        setAlreadySubmitted(true);
       }
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Operation failed");
     } finally {
       setLoading(false);
     }
@@ -101,10 +122,16 @@ const Attendance = () => {
           />
         </div>
 
-        {/* 🔒 LOCK WARNING */}
+        {/* Info banners */}
+        {alreadySubmitted && !isLocked && (
+          <div className="mb-4 p-3 rounded bg-blue-100 text-blue-700 font-medium">
+            ℹ️ Attendance already submitted. You can edit within 24 hours.
+          </div>
+        )}
+
         {isLocked && (
           <div className="mb-4 p-3 rounded bg-red-100 text-red-700 font-semibold">
-            🔒 Attendance is locked for this date (older than 24 hours)
+            🔒 Attendance is locked for this date
           </div>
         )}
 
@@ -143,13 +170,21 @@ const Attendance = () => {
           </table>
         </div>
 
-        {/* Submit */}
+        {/* Submit / Update Button */}
         <button
           onClick={submitAttendance}
           disabled={loading || isLocked}
-          className="mt-6 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          className={`mt-6 px-6 py-2 rounded text-white font-semibold ${
+            alreadySubmitted
+              ? "bg-yellow-600 hover:bg-yellow-700"
+              : "bg-blue-600 hover:bg-blue-700"
+          } disabled:opacity-50`}
         >
-          {loading ? "Submitting..." : "Submit Attendance"}
+          {loading
+            ? "Processing..."
+            : alreadySubmitted
+            ? "Update Attendance"
+            : "Submit Attendance"}
         </button>
       </div>
     </Layout>
