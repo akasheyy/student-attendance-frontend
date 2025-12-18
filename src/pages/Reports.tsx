@@ -1,6 +1,8 @@
 import { useState } from "react";
 import api from "../api/axios";
 import Layout from "../components/Layout";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Report {
   _id: string;
@@ -38,12 +40,52 @@ const Reports = () => {
     }
   };
 
+  // 📄 DOWNLOAD PDF
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("Daily Attendance Report", 14, 15);
+
+    doc.setFontSize(11);
+    doc.text(`Date: ${date}`, 14, 24);
+
+    const tableData = reports.map((r, i) => [
+      i + 1,
+      r.student.rollNo ?? "-",
+      r.student.name,
+      r.status.toUpperCase(),
+    ]);
+
+    autoTable(doc, {
+      startY: 30,
+      head: [["#", "Roll No", "Name", "Status"]],
+      body: tableData,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [37, 99, 235] }, // blue
+    });
+
+    doc.save(`daily-attendance-${date}.pdf`);
+  };
+
   return (
     <Layout>
       <div className="min-h-screen bg-gray-100 p-6">
-        <h2 className="text-2xl font-bold mb-4">
-          Daily Attendance Report
-        </h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold">
+            Daily Attendance Report
+          </h2>
+
+          {/* 📥 Download Button */}
+          {reports.length > 0 && (
+            <button
+              onClick={downloadPDF}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            >
+              Download PDF
+            </button>
+          )}
+        </div>
 
         {/* Date Picker */}
         <div className="mb-6">
