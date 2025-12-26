@@ -32,7 +32,7 @@ const Navbar = () => {
     { name: "Monthly", path: "/reports/monthly", icon: <Calendar size={18} /> },
   ];
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <>

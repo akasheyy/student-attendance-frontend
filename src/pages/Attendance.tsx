@@ -6,19 +6,28 @@ import {
   CheckCircle, 
   XCircle, 
   Save, 
-  Lock, 
   AlertCircle, 
   UserCheck, 
   Users 
 } from "lucide-react";
 
+// 1. Define the Student interface to fix "never" errors
+interface Student {
+  _id: string;
+  name: string;
+  rollNo?: string;
+  status?: "present" | "absent";
+}
+
 const Attendance = () => {
   const today = new Date().toISOString().split("T")[0];
-  const [students, setStudents] = useState([]);
+  
+  // 2. Apply the interface to useState
+  const [students, setStudents] = useState<Student[]>([]);
   const [date, setDate] = useState(today);
   const [loading, setLoading] = useState(false);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
-  const attendanceLoadedRef = useRef(null);
+  const attendanceLoadedRef = useRef<string | null>(null);
 
   useEffect(() => {
     api.get("/students").then((res) => setStudents(res.data));
@@ -32,7 +41,7 @@ const Attendance = () => {
         if (res.data.length > 0) {
           setAlreadySubmitted(true);
           setStudents((prev) => prev.map((s) => {
-            const found = res.data.find((r) => r.student?._id === s._id);
+            const found = res.data.find((r: any) => r.student?._id === s._id);
             return found ? { ...s, status: found.status } : s;
           }));
         } else {
@@ -55,7 +64,7 @@ const Attendance = () => {
     total: students.length
   }), [students]);
 
-  const updateStatus = (id, status) => {
+  const updateStatus = (id: string, status: "present" | "absent") => {
     if (isLocked) return;
     setStudents((prev) => prev.map((s) => (s._id === id ? { ...s, status } : s)));
   };
@@ -84,7 +93,7 @@ const Attendance = () => {
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto pb-32"> {/* Added padding bottom for fixed button */}
+      <div className="max-w-5xl mx-auto pb-32">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-4 md:p-6 rounded-3xl border border-gray-100 shadow-sm mb-6">
@@ -111,7 +120,7 @@ const Attendance = () => {
           </div>
         </div>
 
-        {/* Stats Bar - Fixed for Mobile */}
+        {/* Stats Bar */}
         <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
           <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center md:gap-4 text-center md:text-left">
             <div className="hidden md:block p-3 bg-blue-50 text-blue-600 rounded-xl"><Users size={20}/></div>
@@ -182,8 +191,8 @@ const Attendance = () => {
           </div>
         </div>
 
-        {/* Truly Fixed Bottom Button Container */}
-        <div className="80 backdrop-blur-lg border-t border-gray-100 z-40 md:static md:bg-transparent md:border-none md:backdrop-blur-none">
+        {/* Fixed Bottom Button Container */}
+        <div className="backdrop-blur-lg border-t border-gray-100 z-40 md:static md:bg-transparent md:border-none md:backdrop-blur-none">
           <div className="max-w-5xl mx-auto">
             {!isLocked && (
               <button

@@ -8,7 +8,6 @@ import {
   Download, 
   Calendar as CalendarIcon, 
   Search, 
-  ChevronRight,
   PieChart,
   UserCheck,
   UserX
