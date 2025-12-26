@@ -1,112 +1,82 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/axios";
 import Layout from "../components/Layout";
-
-interface Student {
-  _id: string;
-  name: string;
-  rollNo?: string;
-  status?: "present" | "absent";
-}
+import { 
+  Calendar, 
+  CheckCircle, 
+  XCircle, 
+  Save, 
+  Lock, 
+  AlertCircle, 
+  UserCheck, 
+  Users 
+} from "lucide-react";
 
 const Attendance = () => {
   const today = new Date().toISOString().split("T")[0];
-
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState([]);
   const [date, setDate] = useState(today);
   const [loading, setLoading] = useState(false);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const attendanceLoadedRef = useRef(null);
 
-  // 🔒 prevents re-overwriting user selection
-  const attendanceLoadedRef = useRef<string | null>(null);
-
-  // Load students (once)
   useEffect(() => {
-    api.get<Student[]>("/students").then((res) => {
-      setStudents(res.data);
-    });
+    api.get("/students").then((res) => setStudents(res.data));
   }, []);
 
-  // 🔍 Load attendance ONLY ONCE PER DATE
   useEffect(() => {
-    if (!date) return;
-
-    // ⛔ already loaded for this date
-    if (attendanceLoadedRef.current === date) return;
-
-    api
-      .get(`/attendance/daily?date=${date}`)
+    if (!date || attendanceLoadedRef.current === date) return;
+    api.get(`/attendance/daily?date=${date}`)
       .then((res) => {
         attendanceLoadedRef.current = date;
-
         if (res.data.length > 0) {
           setAlreadySubmitted(true);
-
-          setStudents((prev) =>
-            prev.map((s) => {
-              const found = res.data.find(
-                (r: any) => r.student?._id === s._id
-              );
-              return found ? { ...s, status: found.status } : s;
-            })
-          );
+          setStudents((prev) => prev.map((s) => {
+            const found = res.data.find((r) => r.student?._id === s._id);
+            return found ? { ...s, status: found.status } : s;
+          }));
         } else {
           setAlreadySubmitted(false);
-
-          // reset only when no attendance exists
-          setStudents((prev) =>
-            prev.map((s) => ({ ...s, status: undefined }))
-          );
+          setStudents((prev) => prev.map((s) => ({ ...s, status: undefined })));
         }
       })
-      .catch(() => {
-        setAlreadySubmitted(false);
-      });
+      .catch(() => setAlreadySubmitted(false));
   }, [date]);
 
-  // 🔒 Check 24-hour lock
   const isLocked = useMemo(() => {
     const selected = new Date(date);
     selected.setHours(0, 0, 0, 0);
     return (Date.now() - selected.getTime()) / (1000 * 60 * 60) > 24;
   }, [date]);
 
-  const updateStatus = (id: string, status: "present" | "absent") => {
-    setStudents((prev) =>
-      prev.map((s) => (s._id === id ? { ...s, status } : s))
-    );
+  const stats = useMemo(() => ({
+    present: students.filter(s => s.status === "present").length,
+    absent: students.filter(s => s.status === "absent").length,
+    total: students.length
+  }), [students]);
+
+  const updateStatus = (id, status) => {
+    if (isLocked) return;
+    setStudents((prev) => prev.map((s) => (s._id === id ? { ...s, status } : s)));
   };
 
   const submitAttendance = async () => {
-    if (isLocked) {
-      alert("Attendance is locked for this date 🔒");
-      return;
-    }
-
+    if (isLocked) return;
     const unmarked = students.find((s) => !s.status);
-    if (unmarked) {
-      alert("Please mark attendance for all students");
-      return;
-    }
+    if (unmarked) return alert("Please mark attendance for all students");
 
-    const records = students.map((s) => ({
-      studentId: s._id,
-      status: s.status
-    }));
-
+    const records = students.map((s) => ({ studentId: s._id, status: s.status }));
     try {
       setLoading(true);
-
       if (alreadySubmitted) {
         await api.put("/attendance/edit", { date, records });
-        alert("Attendance updated successfully ✏️");
       } else {
         await api.post("/attendance/mark", { date, records });
-        alert("Attendance submitted successfully ✅");
         setAlreadySubmitted(true);
       }
-    } catch (err: any) {
-      alert(err.response?.data?.message || "Operation failed");
+      alert("Attendance Saved!");
+    } catch (err) {
+      alert("Operation failed");
     } finally {
       setLoading(false);
     }
@@ -114,98 +84,121 @@ const Attendance = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gray-100 p-6">
-        <h2 className="text-2xl font-bold mb-4">Mark Attendance</h2>
+      <div className="max-w-5xl mx-auto pb-32"> {/* Added padding bottom for fixed button */}
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-4 md:p-6 rounded-3xl border border-gray-100 shadow-sm mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+              <UserCheck className="text-blue-600" size={28} />
+              Daily Roll Call
+            </h1>
+          </div>
 
-        {/* Date Picker */}
-        <div className="mb-4">
-          <label className="block mb-1 font-medium">Select Date</label>
-          <input
-            type="date"
-            className="border p-2 rounded"
-            value={date}
-            onChange={(e) => {
-              attendanceLoadedRef.current = null; // reset loader
-              setDate(e.target.value);
-            }}
-          />
+          <div className="flex flex-col gap-1">
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-600" size={18} />
+              <input
+                type="date"
+                className="w-full md:w-auto pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl font-semibold text-gray-700 outline-none"
+                value={date}
+                onChange={(e) => {
+                  attendanceLoadedRef.current = null;
+                  setDate(e.target.value);
+                }}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Info banners */}
-        {alreadySubmitted && !isLocked && (
-          <div className="mb-4 p-3 rounded bg-blue-100 text-blue-700 font-medium">
-            ℹ️ Attendance already submitted. You can edit within 24 hours.
+        {/* Stats Bar - Fixed for Mobile */}
+        <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
+          <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center md:gap-4 text-center md:text-left">
+            <div className="hidden md:block p-3 bg-blue-50 text-blue-600 rounded-xl"><Users size={20}/></div>
+            <div>
+              <p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Total</p>
+              <p className="text-lg md:text-xl font-bold">{stats.total}</p>
+            </div>
           </div>
-        )}
-
-        {isLocked && (
-          <div className="mb-4 p-3 rounded bg-red-100 text-red-700 font-semibold">
-            🔒 Attendance is locked for this date
+          <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center md:gap-4 text-center md:text-left">
+            <div className="hidden md:block p-3 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle size={20}/></div>
+            <div>
+              <p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase text-emerald-600">Present</p>
+              <p className="text-lg md:text-xl font-bold text-emerald-600">{stats.present}</p>
+            </div>
           </div>
-        )}
-
-        {/* Attendance Table */}
-        <div className="bg-white shadow rounded overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-200">
-              <tr>
-                <th className="p-3 text-left">Name</th>
-                <th className="p-3 text-left">Attendance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((s) => (
-                <tr key={s._id} className="border-t">
-                  <td className="p-3">{s.name}</td>
-                  <td className="p-3">
-                    <div className="flex gap-2">
-                      <button
-                        disabled={isLocked}
-                        onClick={() => updateStatus(s._id, "present")}
-                        className={`px-4 py-1 rounded border font-medium ${
-                          s.status === "present"
-                            ? "bg-green-600 text-white"
-                            : "bg-white text-gray-700"
-                        }`}
-                      >
-                        Present
-                      </button>
-
-                      <button
-                        disabled={isLocked}
-                        onClick={() => updateStatus(s._id, "absent")}
-                        className={`px-4 py-1 rounded border font-medium ${
-                          s.status === "absent"
-                            ? "bg-red-600 text-white"
-                            : "bg-white text-gray-700"
-                        }`}
-                      >
-                        Absent
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center md:gap-4 text-center md:text-left">
+            <div className="hidden md:block p-3 bg-red-50 text-red-600 rounded-xl"><XCircle size={20}/></div>
+            <div>
+              <p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase text-red-600">Absent</p>
+              <p className="text-lg md:text-xl font-bold text-red-600">{stats.absent}</p>
+            </div>
+          </div>
         </div>
 
-        {/* Submit / Update Button */}
-        <button
-          onClick={submitAttendance}
-          disabled={loading || isLocked}
-          className={`mt-6 px-6 py-2 rounded text-white font-semibold ${
-            alreadySubmitted
-              ? "bg-yellow-600 hover:bg-yellow-700"
-              : "bg-blue-600 hover:bg-blue-700"
-          }`}
-        >
-          {loading
-            ? "Processing..."
-            : alreadySubmitted
-            ? "Update Attendance"
-            : "Submit Attendance"}
-        </button>
+        {/* Attendance List */}
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <tbody className="divide-y divide-gray-50">
+                {students.map((s) => (
+                  <tr key={s._id} className="group hover:bg-gray-50/50">
+                    <td className="px-4 md:px-8 py-4">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-gray-800 text-sm md:text-lg leading-tight">{s.name}</span>
+                        <span className="text-[10px] md:text-xs text-gray-400 font-mono">Roll: #{s.rollNo || "N/A"}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 md:px-8 py-4">
+                      <div className="flex justify-end bg-gray-100 p-1 rounded-xl w-fit ml-auto">
+                        <button
+                          disabled={isLocked}
+                          onClick={() => updateStatus(s._id, "present")}
+                          className={`px-3 md:px-6 py-1.5 md:py-2 rounded-lg text-[10px] md:text-sm font-bold transition-all ${
+                            s.status === "present"
+                              ? "bg-white text-emerald-600 shadow-sm"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          Present
+                        </button>
+                        <button
+                          disabled={isLocked}
+                          onClick={() => updateStatus(s._id, "absent")}
+                          className={`px-3 md:px-6 py-1.5 md:py-2 rounded-lg text-[10px] md:text-sm font-bold transition-all ${
+                            s.status === "absent"
+                              ? "bg-white text-red-600 shadow-sm"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          Absent
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Truly Fixed Bottom Button Container */}
+        <div className="80 backdrop-blur-lg border-t border-gray-100 z-40 md:static md:bg-transparent md:border-none md:backdrop-blur-none">
+          <div className="max-w-5xl mx-auto">
+            {!isLocked && (
+              <button
+                onClick={submitAttendance}
+                disabled={loading}
+                className={`w-full md:w-auto md:px-10 py-4 rounded-2xl font-bold text-white shadow-xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3 mx-auto ${
+                  alreadySubmitted ? "bg-amber-500" : "bg-blue-600"
+                }`}
+              >
+                {loading ? "Saving..." : alreadySubmitted ? <><Save size={20}/> Update Daily Records</> : <><Save size={20}/> Confirm Attendance</>}
+              </button>
+            )}
+          </div>
+        </div>
+
       </div>
     </Layout>
   );
